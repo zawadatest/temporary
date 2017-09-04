@@ -1,0 +1,12 @@
+[output]
+version = 0.0.0.0
+file = rpd.fw
+
+[lpc]
+version = auto
+file = ../build/rpd_boot.upg
+
+[fpga]
+version = 1.0.0.0
+file = ../../../fpga.rpd
+
