@@ -6,42 +6,43 @@ import serial.tools.list_ports
 import lpc
 
 class Application(Frame):
+    def Dialog1Display(self, h, w):
+        Dialog1 = Toplevel(self, height=h, width=w)
+        Dialog1.title("Error")
 
     def __init__(self, master=None):
         Frame.__init__(self, master)
         self.connection = None
-        
         self.port_list = []
         for port in serial.tools.list_ports.comports():
             self.port_list.append(port[0])
         self.port_list.sort()
-
+        self.aadr=0
         self.pack()
         self.createWidgets()
 
-    def OnValidate(self, addr, maxN):
+    def OnValidate(self, addr, maxN, entry):
         reg = 0
         try:
             if addr.startswith('0x'):
                 reg = int(addr, 16)
                 if reg > maxN:
-                    tkMessageBox.showerror('Invalid register address', 'Error')   
-                    return     
+                    tkMessageBox.showerror('Error', 'Invalid {}.'.format(entry))
+                    return False   
             elif addr.startswith('0'):
                 reg = int(addr, 8)
                 if reg > maxN:
-                    tkMessageBox.showerror('Invalid register address', 'Error')
-                    return
+                    tkMessageBox.showerror('Error', 'Invalid {}.'.format(entry))
+                    return False
             else:
                 reg = int(addr)
                 if reg > maxN:
-                    tkMessageBox.showerror('Invalid register address', 'Error')
-                    return
+                    tkMessageBox.showerror('Error', 'Invalid {}.'.format(entry))
+                    return False
         except ValueError:
-            tkMessageBox.showerror('Invalid register address', 'Error')
-            return
-
-        return reg
+            tkMessageBox.showerror('Error', 'Invalid {}.'.format(entry))
+            return False
+        return True
 
     def createWidgets(self):
         self.v = IntVar()
@@ -49,34 +50,31 @@ class Application(Frame):
         
         Label(self, text='''Device address''').grid(row=1, column=0, sticky=W)
         self.devEntry = Entry(self, width = 10)
-        self.devEntry.grid(row=1, column=1)
+        self.devEntry.grid(row=1, column=1, sticky=W)
         self.devEntry.focus_set()
         
         def callback():
-            print self.OnValidate(self.devEntry.get(), 127)
+            return self.OnValidate(self.devEntry.get(), 127, 'device address')
 
-        self.validate = Button(self, text = 'validate 7 bit addr', command = callback)
-        self.validate.grid(row=1, column=2)
         Label(self, text='''Register address''').grid(row=2, column=0, sticky=W)
         self.regEntry = Entry(self, width = 10)
-        self.regEntry.grid(row=2, column=1)
+        self.regEntry.grid(row=2, column=1, sticky=W)
         self.regEntry.focus_set()
         def callback2():
-            print self.OnValidate(self.regEntry.get(), 65535)
+            return self.OnValidate(self.regEntry.get(), 65535, 'register address')
         
-        self.validate2 = Button(self, text = 'validate 16 bit addr', command = callback2)
-        self.validate2.grid(row=2, column=2)
         Radiobutton(self, text='Write', variable=self.v, value=1).grid(row=3, column=0, sticky=W)
-        self.writeEntry = Entry(self, width = 10)
-        self.writeEntry.grid(row=3, column=1)
-        self.writeEntry.focus_set()
-        def callback3():
-            print self.OnValidate(self.writeEntry.get(), 4294967295)
-        self.validate3 = Button(self, text = 'validate 32 bit', command = callback3)
-        self.validate3.grid(row=3, column=2)
-
         Radiobutton(self, text='Read', variable=self.v, value=2).grid(row=4, column=0, sticky=W)
         Radiobutton(self, text='Upgrade', variable=self.v, value=3).grid(row=5, column=0, sticky=W)
+        t = StringVar()
+        self.writeEntry = Entry(self, width = 40, textvariable=t)
+        self.writeEntry.grid(row=3, column=1, columnspan=3, rowspan =2, sticky=W)
+        t.set('write data')
+        self.writeEntry.focus_set()
+        def callback3():
+            return self.OnValidate(self.writeEntry.get(), 4294967295, 'write value')
+        
+        
         
         def upgrade():
             print 'Upgrade'
@@ -105,7 +103,7 @@ class Application(Frame):
                 try:
                     self.connection = lpc.LPC(self.combox.get(), self.speedbox.get())
                 except Exception:
-                    tkMessageBox.showerror('Open port error', 'Error')
+                    tkMessageBox.showerror('Error', 'Open port error')
                     return
                 self.connection.enter_in_i2c_mode()
                 self.connect['text'] = 'Disconnect'
@@ -124,17 +122,40 @@ class Application(Frame):
         self.combox.current(0)
         self.combox.grid(row=8, column=1)
         def action():
-            data = self.OnValidate(self.writeEntry.get(), 4294967295)
-            val = [(data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF]
-            self.connection.send_cmd(int(self.devEntry.get()), int(self.regEntry.get()), val)
+            print self.v.get()
+            if callback():
+                if callback2():
+                    if self.v.get() == 0: #not checked
+                        tkMessageBox.showerror('Error', 'Check option')
+                        return
+                    if self.v.get() == 1:
+                        callback3()
+                        return
+                else:
+                    return
+            #try:
+            if self.v.get() == 1: #write
+                data = self.OnValidate(self.writeEntry.get(), 4294967295, 'write value')
+                val = [(data >> 24) & 0xFF, (data >> 16) & 0xFF, (data >> 8) & 0xFF, data & 0xFF]
+                self.connection.write_cmd(int(self.devEntry.get()), int(self.regEntry.get()), val)
+            elif self.v.get() == 2: #read
+                print int(self.devEntry.get(),16)
+                data = self.connection.read_cmd(int(self.devEntry.get(),16), int(self.regEntry.get()))
+                t.set(str(data))
+            elif self.v.get() == 3: #upgrade
+                return  
+            #except Exception:
+            #    tkMessageBox.showerror('Error', 'Not connected. You have to connect.')
+            #    return
         self.ACTION = Button(self, text = 'ACTION', fg = 'red', command = action)
         self.ACTION.grid(row=9, column=2, sticky=W)
         self.QUIT = Button(self, text = 'QUIT', fg = 'red', command = self.quit)
-        self.QUIT.grid(row=9, column=2, sticky=E)
+        self.QUIT.grid(row=9, column=3, sticky=W)
         
 
 
 root = Tk()
 root.geometry('570x400+300+300')
+root.option_add('*Dialog.msg.width', 30)
 app = Application(master=root)
 app.mainloop()
