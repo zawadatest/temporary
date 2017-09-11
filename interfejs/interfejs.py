@@ -1,10 +1,19 @@
-import Tkinter,tkFileDialog
+import sys
+from PyQt5.QtCore import QUrl
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtQuick import QQuickView
 
-root = Tkinter.Tk()
-file = tkFileDialog.askopenfile(parent=root,mode='rb',title='Choose a file')
-if file != None:
-    data = file.read()
-    file.close()
-    print "I got %d bytes from this file." % len(data)
+# Main Function
+if __name__ == '__main__':
+    # Create main app
+    myApp = QApplication(sys.argv)
+    # Create a label and set its properties
+    appLabel = QQuickView()
+    appLabel.setSource(QUrl('basic.qml'))
 
-mainloop()
+    # Show the Label
+    appLabel.show()
+
+    # Execute the Application and Exit
+    myApp.exec_()
+    sys.exit()

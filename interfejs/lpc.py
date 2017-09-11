@@ -62,7 +62,6 @@ class LPC:
 		dev_addr = dev_addr | 1 #read
 		adr2 = ((reg_addr >> 8) & 0xFF)
 		adr1 = ((reg_addr) & 0xFF)
-		
 		cmd.append(adr1)
 		cmd.append(adr2)
 		bytestring =  ''.join(map(chr, cmd))
@@ -70,20 +69,25 @@ class LPC:
 		crc8 = crcmod.predefined.mkCrcFun('crc-8')
 		crc = crc8(bytestring, 0x00)
 		crc = crc & 0xFF
-		#print crc
 		crc_str = '0x{:02x}'.format(crc)
-		#print crc_str
 		frame_str = '[{} {} [{} r:5]\n'.format(frame, crc_str, hex(dev_addr))
 		print frame_str
 		self.serial.write(frame_str)
-		#time.sleep(0.1)
 		buff = self.serial.read(500)
 		print buff
-		time.sleep(0.1)
 		data_array = self.parse(buff)
-		crc_str = data_array[-1]
-		data = data_array[-2]
-		for i in reversed(data_array[:-2]):
-			data += i[2:]
-		print data
-		return data
+		crc_buff = data_array[-1]
+		x = [dev_addr]
+		x.extend(int(z,16) for z in data_array[:-1])
+		bytestring = ''.join(map(chr, x))
+		crc = crc8(bytestring, 0x00)
+		crc = crc & 0xFF
+		crc_data = '0x{:02x}'.format(crc)
+		if crc == int(crc_buff, 16):
+			data = data_array[-2]
+			for i in reversed(data_array[:-2]):
+				data += i[2:]
+			print data
+			return data
+		else:
+			return 'Bad CRC'
