@@ -9,14 +9,14 @@ ApplicationWindow {
     signal clicked()
     signal clicked2()
     signal clicked3(string text)
-    signal actionClicked(string dev, string reg, int opt, string port, string speed, string write)
+    signal actionClicked(string dev, string reg, int opt, string port, string speed, string write, int row)
     visible: true
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
     width: 480
     height: 480
     property var portArray: []
-    property int opt: (read.checked == true) ? 1 : ((write.checked == true) ? 2 : 3) 
+    property int opt: (read.checked == true) ? 1 : ((write.checked == true) ? 2 : ((walk.checked == true) ? 3 : 4)) 
     statusBar: StatusBar {
     	objectName: "statusBar"
     	function setStatus(statusString){
@@ -41,7 +41,6 @@ ApplicationWindow {
     	id: entryValues
     	objectName: "entryVal"
     	function setPortList(x){
-        	console.log("result 1 is : ", x)
         	rootRect.portArray = JSON.parse(x)
     	}
         anchors.left: parent.left
@@ -123,6 +122,11 @@ ApplicationWindow {
 	        exclusiveGroup: group
 	    }
 	    RadioButton {
+	        id: walk
+	        text: "Walk"
+	        exclusiveGroup: group
+	    }
+	    RadioButton {
 	        id: upgrade
 	        text: "Upgrade"
 	        exclusiveGroup: group
@@ -142,7 +146,7 @@ ApplicationWindow {
 		anchors.topMargin: 10
 		anchors.left: parent.left
 		anchors.leftMargin: 20
-		visible: (write.checked==true) ? true : false
+		visible: (tableV.currentRow > -1) ? true : false
     	Text {
     		id: writeLabel
     		font.family: "Helvetica"
@@ -187,7 +191,7 @@ ApplicationWindow {
 	    anchors.top: apearFilepath.bottom
 	    anchors.horizontalCenter: parent.horizontalCenter
 	    anchors.bottom: quit.top
-	    visible: false
+	    visible: (tableV.visible == true) ? false : true
 	}
 	Button {
 		id: quit
@@ -208,7 +212,7 @@ ApplicationWindow {
 		anchors.bottom: quit.bottom
 		MouseArea {
     	    anchors.fill: parent
-        	onClicked: rootRect.actionClicked(devE.text, regE.text, opt, portBox.currentText, speedBox.currentText, writeE.text)
+        	onClicked: rootRect.actionClicked(devE.text, regE.text, opt, portBox.currentText, speedBox.currentText, writeE.text, tableV.currentRow)
 		}
 	}
 
@@ -227,7 +231,6 @@ ApplicationWindow {
 	    id: fileDialog
 	    title: "Please choose a file"
 	    onAccepted: {
-	        console.log("You chose: " + fileDialog.fileUrls)
 	        filepathValue.text = fileDialog.fileUrl
 	        apearFilepath.visible = true
 	    }
@@ -237,33 +240,56 @@ ApplicationWindow {
 	}
 	ListModel {
 	    id: libraryModel
-	    function printWalk(data){
-	    	var x = JSON.parse(data)
-	    	for(i = 0; i<x.length; i++){
-	    		ListElement {
-	    			title: str(i)
-	    			author: x[i]
-	    		}
-	    	}
-			text = JSON.parse(data)
-		
-	    }
+	    
 	}
 	TableView {
+		id: tableV
+		objectName: "table"
+		function printWalk(data){
+	    	var dat = JSON.parse(data)
+    		console.log(dat)
+    		console.log(dat.length)
+    		var i = 0	  
+    		for(i=0; i<dat.length; i++){
+    			libraryModel.append({regN:i, data:dat[i]})
+    		}  		
+	    	
+		} 
+		function showRegs(regTab){
+			var rT = JSON.parse(regTab)
+			var i = 0
+			var w = rT['0'];
+			for(i = 0; i<rT.quantity; i++){
+				var tmp = rT[i.toString()]
+				if(libraryModel.count < i+1){
+					libraryModel.append({regN:tmp.name, address: tmp.address, data: tmp.data})
+				}else{
+					libraryModel.setProperty(i, "data", tmp.data)
+				}
+				
+			}
+		}
 		width: parent.width-10
 		anchors.top: apearFilepath.bottom
 	    anchors.horizontalCenter: parent.horizontalCenter
 	    anchors.bottom: quit.top
+	    visible: (walk.checked == true) ? true : false
 	    TableViewColumn {
-	        role: "title"
+	    	role: "regN"
 	        title: "Register"
 	        width: 100
 	    }
 	    TableViewColumn {
-	        role: "author"
+	    	role: "address"
+	        title: "Address"
+	        width: 200
+	    }
+	    TableViewColumn {
+	    	role: "data"
 	        title: "Data"
 	        width: 200
 	    }
 	    model: libraryModel
+	     
 	}
 }
