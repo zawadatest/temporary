@@ -6,17 +6,18 @@ import Charts 1.0
 
 ApplicationWindow {
 	id: rootRect
-    signal clicked()
-    signal clicked2()
-    signal clicked3(string text)
-    signal actionClicked(string dev, string reg, int opt, string port, string speed, string write, int row)
+    signal actionClicked(string dev, int opt, string port, string speed, string write, int row)
+    signal liveChecking(string dev, int row)
+    signal notChecking(int row)
+    signal kill()
     visible: true
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
     width: 480
     height: 480
     property var portArray: []
-    property int opt: (read.checked == true) ? 1 : ((write.checked == true) ? 2 : ((walk.checked == true) ? 3 : 4)) 
+    property int opt: 4
+    property string tmpstr: ""
     statusBar: StatusBar {
     	objectName: "statusBar"
     	function setStatus(statusString){
@@ -62,7 +63,7 @@ ApplicationWindow {
         	width: 200
         	text: '0x5a'
     		placeholderText: qsTr("Enter name")
-		}
+		}/*
 		Text {
 	        id: regLabel
 	        width: 150
@@ -75,7 +76,7 @@ ApplicationWindow {
         	text: '0'
         	width: 200
     		placeholderText: qsTr("Enter register address")
-		}
+		}*/
         Text {
 	        id: speedLabel
 	        width: 150
@@ -101,98 +102,7 @@ ApplicationWindow {
 		    model: rootRect.portArray
 		}
     }
-    ExclusiveGroup { id: group }
-	Row {
-		anchors.top: entryValues.bottom
-		anchors.topMargin: 10
-		anchors.left: parent.left
-		anchors.right: parent.right
-        anchors.leftMargin: 20
-        spacing: 5
-	    id: radioButtons
-	    RadioButton {
-	        id: read
-	        text: "Read"
-	        exclusiveGroup: group
-	        checked: true
-	    }
-	    RadioButton {
-	        id: write
-	        text: "Write"
-	        exclusiveGroup: group
-	    }
-	    RadioButton {
-	        id: walk
-	        text: "Walk"
-	        exclusiveGroup: group
-	    }
-	    RadioButton {
-	        id: upgrade
-	        text: "Upgrade"
-	        exclusiveGroup: group
-	    }
-	    Button {
-			id: browse
-			text: "Browse"
-			MouseArea {
-	    	    anchors.fill: parent
-	        	onClicked: fileDialog.open()
-			}
-		}
-	}
-    Row {
-    	id: apearWrite
-		anchors.top: radioButtons.bottom
-		anchors.topMargin: 10
-		anchors.left: parent.left
-		anchors.leftMargin: 20
-		visible: (tableV.currentRow > -1) ? true : false
-    	Text {
-    		id: writeLabel
-    		font.family: "Helvetica"
-    		font.pointSize: 10
-    		text:"Write data:"
-    	}
-    	TextField {
-        	id: writeE
-        	anchors.verticalCenter: writeLabel.verticalCenter
-        	width: 200
-    		placeholderText: qsTr("Enter write data")
-		}
-	}
-	Row {
-		id: apearFilepath
-		anchors.top: apearWrite.bottom
-		anchors.topMargin: 10
-		anchors.left: parent.left
-		anchors.leftMargin: 20
-		visible: false	
-		Text {
-			id: filepathLabel
-	        width: 150
-	        text: "Filepath:"
-	        font.family: "Helvetica"
-	        font.pointSize: 10
-    	}
-    	Text {
-			id: filepathValue
-	        width: 150
-	        font.family: "Helvetica"
-	        font.pointSize: 10
-    	}
-	}
-	TextArea {
-		objectName: "textArea"
-		function printData(data){
-			text = JSON.parse(data)
-		}
-	    id: txtArea
-	    width: parent.width-10
-	    anchors.top: apearFilepath.bottom
-	    anchors.horizontalCenter: parent.horizontalCenter
-	    anchors.bottom: quit.top
-	    visible: (tableV.visible == true) ? false : true
-	}
+    
 	Button {
 		id: quit
 		text: "Quit"
@@ -201,18 +111,25 @@ ApplicationWindow {
 		anchors.rightMargin: 5
 		anchors.bottomMargin: 5
 		MouseArea {
-    	    anchors.fill: parent
-        	onClicked: rootRect.close()
+    	    anchors.fill: parent    	    
+        	onClicked: {rootRect.kill(); rootRect.close()}
 		}
 	}
 	Button {
 		id: action
-		text: "Action"
+		text: "Connect"
 		anchors.right: quit.left
 		anchors.bottom: quit.bottom
 		MouseArea {
     	    anchors.fill: parent
-        	onClicked: rootRect.actionClicked(devE.text, regE.text, opt, portBox.currentText, speedBox.currentText, writeE.text, tableV.currentRow)
+        	onClicked: {
+        		rootRect.actionClicked(devE.text, 4, portBox.currentText, speedBox.currentText, tmpstr, tableV.currentRow)
+        		if(action.text == "Connect"){
+        			action.text = "Disconnect"
+        		}else{
+        			action.text = "Connect"
+        		}
+    		}
 		}
 	}
 
@@ -240,21 +157,10 @@ ApplicationWindow {
 	}
 	ListModel {
 	    id: libraryModel
-	    
-	}
+	}	    
 	TableView {
 		id: tableV
 		objectName: "table"
-		function printWalk(data){
-	    	var dat = JSON.parse(data)
-    		console.log(dat)
-    		console.log(dat.length)
-    		var i = 0	  
-    		for(i=0; i<dat.length; i++){
-    			libraryModel.append({regN:i, data:dat[i]})
-    		}  		
-	    	
-		} 
 		function showRegs(regTab){
 			var rT = JSON.parse(regTab)
 			var i = 0
@@ -262,7 +168,7 @@ ApplicationWindow {
 			for(i = 0; i<rT.quantity; i++){
 				var tmp = rT[i.toString()]
 				if(libraryModel.count < i+1){
-					libraryModel.append({regN:tmp.name, address: tmp.address, data: tmp.data})
+					libraryModel.append({regN: tmp.name, address: tmp.address, readOnly: tmp.readOnly ? tmp.readOnly : 'false', data: tmp.data})
 				}else{
 					libraryModel.setProperty(i, "data", tmp.data)
 				}
@@ -270,26 +176,100 @@ ApplicationWindow {
 			}
 		}
 		width: parent.width-10
-		anchors.top: apearFilepath.bottom
+		anchors.top: entryValues.bottom
 	    anchors.horizontalCenter: parent.horizontalCenter
 	    anchors.bottom: quit.top
-	    visible: (walk.checked == true) ? true : false
+	    visible: true
+	    TableViewColumn {
+            id: checkedCol
+            role:  "checked"
+            title: "Live check"
+            width: tableV.width / 6
+            delegate: Item {
+            	anchors.fill: parent
+            	CheckBox{
+            		id: liveCheck
+            		anchors.centerIn: parent
+            		enabled: true
+            		onClicked: {
+            			if(checked == true){
+            				liveChecking(devE.text, styleData.row)
+            			}else{
+            				notChecking(styleData.row)
+            			}
+            		}
+				}
+            }
+        }
 	    TableViewColumn {
 	    	role: "regN"
 	        title: "Register"
-	        width: 100
+	        width: tableV.width/4
 	    }
 	    TableViewColumn {
 	    	role: "address"
 	        title: "Address"
-	        width: 200
+	        width: tableV.width/6
 	    }
 	    TableViewColumn {
+	    	role: "readOnly"
+	    	title: "Read-Only"
+	    	width: tableV.width/6
+	    }
+	    TableViewColumn {
+	    	objectName: "dataColumn"
+	    	function setData(newData){
+	    		var temp = JSON.parse(newData)
+    			libraryModel.get(temp.row).data = temp.data
+    		}
 	    	role: "data"
 	        title: "Data"
-	        width: 200
+	        width: tableV.width/4
+	        delegate:  Component {	        	
+			    Loader {
+			        id: loader
+			        anchors { verticalCenter: parent.verticalCenter; left: parent.left}
+	                height: parent.height
+	                width: parent.width
+	                visible: true
+
+	                sourceComponent: (libraryModel.get(styleData.row).readOnly == 'true') ? textItem : input
+	                Component {
+	                    id: input
+	                    TextField {
+	                    	
+	                    	id: inpt
+	                    	style: Component{Text{}   }
+	                        anchors { fill: parent }
+	                        text: styleData.value
+	                        
+	                        onAccepted:{
+	                            // DO STUFF
+	                            inpt.focus =  false	
+	                            rootRect.actionClicked(devE.text, 2, portBox.currentText, speedBox.currentText, text, tableV.currentRow)	                            
+	                            //loader.visible = false
+	                        }
+
+	                        onActiveFocusChanged: {
+	                            if (!activeFocus) {
+	                            }
+	                        }
+	                    }
+	                }
+	                Component {
+		                id: textItem
+		                TextField {
+		                	id: txt
+					    	style: Component{Text{}   }
+					        text: styleData.value
+					        visible: true
+				    	
+				    	}
+			    	}
+	            }
+		    } 
 	    }
-	    model: libraryModel
-	     
+	    model: libraryModel	    
+	    	    
 	}
 }

@@ -59,6 +59,7 @@ class LPC:
 		print frame_str
 		self.serial.write(frame_str)
 		print "write dziala"
+		time.sleep(0.1)
 		return "Write done"
 
 	def read_cmd(self, dev_addr, reg_addr):
