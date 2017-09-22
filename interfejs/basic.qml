@@ -6,10 +6,12 @@ import Charts 1.0
 
 ApplicationWindow {
 	id: rootRect
-    signal actionClicked(string dev, int opt, string port, string speed, string write, int row)
+    signal actionClicked(string dev, string opt, string port, string speed, string toWrite, int row)
     signal liveChecking(string dev, int row)
     signal notChecking(int row)
     signal kill()
+    signal delConnection()
+    //signal startCl()
     visible: true
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
@@ -17,7 +19,9 @@ ApplicationWindow {
     height: 480
     property var portArray: []
     property int opt: 4
-    property string tmpstr: ""
+    property bool writing: false
+    //property string tmpstr: ""
+
     statusBar: StatusBar {
     	objectName: "statusBar"
     	function setStatus(statusString){
@@ -28,6 +32,7 @@ ApplicationWindow {
             Label { id: status; text: "Not connected" }
         }
     }
+
 	Text {
 		objectName: "hello"
         id: hello
@@ -38,6 +43,7 @@ ApplicationWindow {
         font.pointSize: 14
         horizontalAlignment: Text.AlignHCenter
     }
+
     Grid {	
     	id: entryValues
     	objectName: "entryVal"
@@ -63,20 +69,7 @@ ApplicationWindow {
         	width: 200
         	text: '0x5a'
     		placeholderText: qsTr("Enter name")
-		}/*
-		Text {
-	        id: regLabel
-	        width: 150
-	        text: "Register address:"
-	        font.family: "Helvetica"
-	        font.pointSize: 10
-    	}
-    	TextField {
-        	id: regE
-        	text: '0'
-        	width: 200
-    		placeholderText: qsTr("Enter register address")
-		}*/
+		}
         Text {
 	        id: speedLabel
 	        width: 150
@@ -112,21 +105,33 @@ ApplicationWindow {
 		anchors.bottomMargin: 5
 		MouseArea {
     	    anchors.fill: parent    	    
-        	onClicked: {rootRect.kill(); rootRect.close()}
+        	onClicked: {
+	        	rootRect.delConnection();
+	        	rootRect.kill(); 
+	        	rootRect.close()
+        	}
 		}
 	}
+
 	Button {
 		id: action
+		objectName: "action"
 		text: "Connect"
 		anchors.right: quit.left
 		anchors.bottom: quit.bottom
 		MouseArea {
     	    anchors.fill: parent
         	onClicked: {
-        		rootRect.actionClicked(devE.text, 4, portBox.currentText, speedBox.currentText, tmpstr, tableV.currentRow)
         		if(action.text == "Connect"){
+        			rootRect.actionClicked(devE.text, "walk", portBox.currentText, speedBox.currentText, "", tableV.currentRow)
         			action.text = "Disconnect"
         		}else{
+        			//rootRect.kill()
+        			rootRect.delConnection()
+
+        			if(libraryModel.count){
+        				libraryModel.clear()
+        			}
         			action.text = "Connect"
         		}
     		}
@@ -144,23 +149,25 @@ ApplicationWindow {
 	    id: messageDialog
 	    Component.onCompleted: visible = false
 	}
-	FileDialog {
-	    id: fileDialog
-	    title: "Please choose a file"
-	    onAccepted: {
-	        filepathValue.text = fileDialog.fileUrl
-	        apearFilepath.visible = true
-	    }
-	    onRejected: {
-	        console.log("Canceled")
-	    }
-	}
+
 	ListModel {
 	    id: libraryModel
-	}	    
+	}
+
+	Component {
+		id: emptyComponent
+		Text{}
+	}
+
 	TableView {
 		id: tableV
 		objectName: "table"
+		width: parent.width-10
+		anchors.top: entryValues.bottom
+	    anchors.horizontalCenter: parent.horizontalCenter
+	    anchors.bottom: quit.top
+	    visible: true
+
 		function showRegs(regTab){
 			var rT = JSON.parse(regTab)
 			var i = 0
@@ -168,18 +175,13 @@ ApplicationWindow {
 			for(i = 0; i<rT.quantity; i++){
 				var tmp = rT[i.toString()]
 				if(libraryModel.count < i+1){
-					libraryModel.append({regN: tmp.name, address: tmp.address, readOnly: tmp.readOnly ? tmp.readOnly : 'false', data: tmp.data})
+					libraryModel.append({regN: tmp.name, address: tmp.address, readOnly: tmp.readOnly ? tmp.readOnly : 'false', data: parseInt(tmp.data)})
 				}else{
-					libraryModel.setProperty(i, "data", tmp.data)
+					libraryModel.setProperty(i, "data", parseInt(tmp.data))
 				}
 				
 			}
 		}
-		width: parent.width-10
-		anchors.top: entryValues.bottom
-	    anchors.horizontalCenter: parent.horizontalCenter
-	    anchors.bottom: quit.top
-	    visible: true
 	    TableViewColumn {
             id: checkedCol
             role:  "checked"
@@ -193,7 +195,9 @@ ApplicationWindow {
             		enabled: true
             		onClicked: {
             			if(checked == true){
+            				console.log(styleData.row)
             				liveChecking(devE.text, styleData.row)
+            				console.log(styleData.row)
             			}else{
             				notChecking(styleData.row)
             			}
@@ -217,59 +221,82 @@ ApplicationWindow {
 	    	width: tableV.width/6
 	    }
 	    TableViewColumn {
+	    	id: dataColumn
 	    	objectName: "dataColumn"
-	    	function setData(newData){
-	    		var temp = JSON.parse(newData)
-    			libraryModel.get(temp.row).data = temp.data
-    		}
 	    	role: "data"
 	        title: "Data"
 	        width: tableV.width/4
-	        delegate:  Component {	        	
+	    	function setData(newData){
+	    		console.log(newData)
+	    		var temp = JSON.parse(newData)
+	    		console.log(temp.data)
+	    		console.log("sldjflksjdf")
+	    		console.log(temp.row)
+	    		if(libraryModel.count){
+	    			console.log(libraryModel.get(temp.row).data)
+	    			var tttt = String(temp.data)
+	    			console.log('czy tu')
+	    			libraryModel.setProperty(temp.row, "data", parseInt(temp.data))
+	    			//libraryModel.get(temp.row).data = temp.data
+	    			//libraryModel.get(1).data = '12'
+    				console.log("tu dupa")
+    			}
+    		}
+	        delegate: Component {	        	
 			    Loader {
 			        id: loader
-			        anchors { verticalCenter: parent.verticalCenter; left: parent.left}
-	                height: parent.height
-	                width: parent.width
+			        anchors { verticalCenter: parent ? parent.verticalCenter : undefined; left: parent ? parent.left : undefined}
+	                height: parent ? parent.height : undefined
+	                width: parent ? parent.width : undefined
 	                visible: true
-
-	                sourceComponent: (libraryModel.get(styleData.row).readOnly == 'true') ? textItem : input
+	                sourceComponent: (libraryModel.count) ? ((libraryModel.get(styleData.row).readOnly == 'true') ? textItem : inputDelegate) : undefined 
 	                Component {
-	                    id: input
+	                    id: inputDelegate
 	                    TextField {
-	                    	
-	                    	id: inpt
+	                    	id: input
+	                    	property int opt: styleData.row
 	                    	style: Component{Text{}   }
-	                        anchors { fill: parent }
 	                        text: styleData.value
-	                        
+	                        visible: true
+	                        focus: writing
 	                        onAccepted:{
-	                            // DO STUFF
-	                            inpt.focus =  false	
-	                            rootRect.actionClicked(devE.text, 2, portBox.currentText, speedBox.currentText, text, tableV.currentRow)	                            
-	                            //loader.visible = false
+	                            rootRect.actionClicked(devE.text, "write", portBox.currentText, speedBox.currentText, text, tableV.currentRow)
+	                            text = styleData.value
+	                            writing = false	
 	                        }
-
-	                        onActiveFocusChanged: {
-	                            if (!activeFocus) {
-	                            }
-	                        }
+	                        MouseArea{
+        						anchors.fill: parent
+        						onClicked: {
+        							writing = true
+        							tableV.selection.forEach(function(rowIndex){tableV.selection.deselect(rowIndex)})
+        							tableV.selection.select(styleData.row)
+        							if(writing){
+	        							input.forceActiveFocus()
+        							}
+        						}
+        					}
 	                    }
 	                }
 	                Component {
 		                id: textItem
-		                TextField {
+		                Text {
 		                	id: txt
-					    	style: Component{Text{}   }
+					    	style: Component{Text{font.weight: Font.Black}   }
+        					MouseArea{
+        						anchors.fill: parent
+        						onClicked: {
+        							tableV.selection.forEach(function(rowIndex){tableV.selection.deselect(rowIndex)})
+        							tableV.selection.select(styleData.row)
+    								writing = false
+        						}
+        					}
 					        text: styleData.value
 					        visible: true
-				    	
 				    	}
 			    	}
 	            }
 		    } 
 	    }
 	    model: libraryModel	    
-	    	    
 	}
 }

@@ -1,7 +1,8 @@
 import sys
+import time
 import threading
 import ConfigParser
-from PyQt5.QtCore import QUrl, QObject, pyqtProperty, pyqtSignal, pyqtSlot, QVariant, QMetaObject, Q_ARG, Qt
+from PyQt5.QtCore import QUrl, QObject, pyqtProperty, pyqtSignal, pyqtSlot, QVariant, QMetaObject, Q_ARG, Qt, QMetaType
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDesktopWidget, QMessageBox
 from PyQt5.QtQuick import QQuickView
 from PyQt5.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlComponent, qmlRegisterType
@@ -14,8 +15,6 @@ class MainApp(QObject):
         super(MainApp, self).__init__(parent)
         self.checkList = []
         self.devGlobal = ''
-        self.t = threading.Timer(5.0, self.checkReg)
-        self.t.daemon = True
         self.config = ConfigParser.ConfigParser()
         self.config.read("cfg.ini")
         self.connection = None
@@ -26,18 +25,17 @@ class MainApp(QObject):
 
 
     @pyqtSlot(QVariant)
-    def sendPortList(self, myengine):
+    def sendPortList(self):
         result = self.port_list
-        obj = myengine.rootObjects()
+        obj = engine.rootObjects()
         myObject = obj[0].findChild(QObject, 'entryVal')
         QMetaObject.invokeMethod(myObject, "setPortList", Qt.DirectConnection, Q_ARG("QVariant", dumps(result)))
-
         return 0
 
     @pyqtSlot(QVariant)
-    def error(self, myengine, errTitle, errText):
+    def error(self, errTitle, errText):
         send = [errTitle, errText]
-        obj = myengine.rootObjects()
+        obj = engine.rootObjects()
         myObject = obj[0].findChild(QObject, 'message')
         QMetaObject.invokeMethod(myObject, "error", Qt.DirectConnection, Q_ARG("QVariant", dumps(send)))
         return 0
@@ -48,6 +46,8 @@ class MainApp(QObject):
         myObject = obj[0].findChild(QObject, 'statusBar')
         QMetaObject.invokeMethod(myObject, "setStatus", Qt.DirectConnection, Q_ARG("QVariant", dumps(status)))
         return 0
+
+    
 
     @pyqtSlot(QVariant)
     def printData(self, data):
@@ -83,16 +83,15 @@ class MainApp(QObject):
         return reg
 
     def checkReg(self):
-        if self.t:
-            self.t = threading.Timer(5.0, self.checkReg)
-            self.t.daemon = True
-            self.t.start()
+        t = threading.Timer(1.0, self.checkReg)
+        t.start()
+        thread.append(t)
         dev_val = self.OnValidate(self.devGlobal, 127, 'device address')
-        for row in self.checkList:            
+        for row in self.checkList:   
             reg_val = int(self.config.get(self.config.sections()[row], 'address'))
             newData ={}
             newData['data'] = self.connection.read_cmd(dev_val, reg_val)
-            newData['row'] = row
+            newData['row'] = str(row)
             self.printData(newData)
 
     def liveChecking(self, dev, row):
@@ -100,15 +99,17 @@ class MainApp(QObject):
         self.checkList.append(row)
 
     def notChecking(self, row):
-        self.t.cancel()
         self.checkList.remove(row)
-        self.t = threading.Timer(5.0, self.checkReg)
-        self.t.daemon = True
-        self.checkReg()
 
     def kill(self):
+        for t in thread:
+            t.cancel()
         self.checkList = []
 
+    def disconnect(self):
+        self.checkList = []
+        self.connection = None
+    
     def walk(self, dev_val):
         registers = {}
         i = 0
@@ -126,96 +127,59 @@ class MainApp(QObject):
         self.showRegisters(registers)
 
     def actionMethod(self, dev, opt, port, speed, write, row):
-        print row
-        print "row"
         dev_val = self.OnValidate(dev, 127, 'device address')
-        # reg_val = self.OnValidate(reg, 65535, 'register address')
         write_val = None
-        # opt = self..get()
         if dev_val != None:
-            # if reg_val != None:
-                if self.connection == None:
-                    try:    
-                        self.connection = lpc.LPC(port, speed)
-                        self.connection.enter_in_i2c_mode()
-
-                    except Exception as e:
-                        self.error(engine, 'Error', 'Connection problem. {}'.format(e))
-                        self.setStatus('Not connected')
-                        return
-            # else:
-            #     self.error(engine, 'Error', 'Invalid register address.')
-            #     return
+            if self.connection == None:
+                try:    
+                    self.connection = lpc.LPC(port, speed)
+                    self.connection.enter_in_i2c_mode()
+                except Exception as e:
+                    self.error('Error', 'Connection problem. {}'.format(e))
+                    self.setStatus('Not connected')
+                    return
         else:
-            self.error(engine, 'Error', 'Invalid device address.')
+            self.error( 'Error', 'Invalid device address.')
             return
-        if opt == 1: # read
+        if opt == 'write': # write
             try:
-                # data = self.connection.read_cmd(dev_val, reg_val)
-                self.setStatus('Connected')
-                
-                self.printData(str(data))
-
-            except Exception as e:
-                self.error(engine, 'Error', 'Read problem. {}'.format(e))
-        
-        elif opt == 2: # write
-            # try:
                 write_val = self.OnValidate(write, 4294967295, 'write value')
                 reg_val = int(self.config.get(self.config.sections()[row], 'address'))
-                print reg_val
                 if write_val != None:
                     val = [(write_val >> 24) & 0xFF, (write_val >> 16) & 0xFF, (write_val >> 8) & 0xFF, write_val & 0xFF]
-                    messg = self.connection.write_cmd(dev_val, reg_val, val)
-
+                    self.connection.write_cmd(dev_val, reg_val, val)
                 else:
-                    self.error(engine, 'Error', 'Invalid write data')
-                newData ={}
+                    self.error('Error', 'Invalid write data')
+                newData = {}
                 newData['data'] = self.connection.read_cmd(dev_val, reg_val)
                 newData['row'] = row
                 self.printData(newData)
-                # zamiast walk robic aktualizowaine jednego rejestru
-                # self.walk(dev_val)
-            # except Exception as e:
-            #     self.error(engine, 'Error', 'Write problem. {}'.format(e))
-
-        elif opt == 3:
-            # try:
-            self.walk(dev_val)
-            # data = self.connection.walk(dev_val)
-            # print "data"
-            # print registers
-            # print data
-            self.setStatus('Connected')
-            
-
-            # except Exception as e:
-            #     self.error(engine, 'Error', 'Walk problem. {}'.format(e))
-        
-        elif opt == 4: # upgrade
+            except Exception as e:
+                self.error('Error', 'Write problem. {}'.format(e))
+        elif opt == 'walk': # upgrade
             self.walk(dev_val)
             self.setStatus('Connected')
-
-
 
 # Main Function
 if __name__ == '__main__':
     # Create main app
     qmlRegisterType(MainApp, "Charts", 1, 0, "MainApp")
+    # qRegisterMetaType<QVector<int>>("QVector<int>");
+    somesignal = pyqtSignal(QVariant)
     myApp = QApplication(sys.argv)
     engine = QQmlApplicationEngine(myApp)
     engine.load(QUrl.fromLocalFile('basic.qml'))
-    x = MainApp()
-    x.sendPortList(engine)
-    ctx = engine.rootContext()
-    ctx.setContextProperty("mainAppPy", engine)
-    x.checkReg()
+    mainApp = MainApp()
+    mainApp.sendPortList()
+    thread = []
+    mainApp.checkReg()
     window = engine.rootObjects()[0]
     window.show()
-    window.actionClicked.connect(x.actionMethod)
-    window.liveChecking.connect(x.liveChecking)
-    window.notChecking.connect(x.notChecking)
-    window.kill.connect(x.kill)
+    window.actionClicked.connect(mainApp.actionMethod)
+    window.liveChecking.connect(mainApp.liveChecking)
+    window.notChecking.connect(mainApp.notChecking)
+    window.delConnection.connect(mainApp.disconnect)
+    window.kill.connect(mainApp.kill)
     # Execute the Application and Exit
     myApp.exec_()
-    sys.exit()
+    sys.exit(mainApp.kill())
